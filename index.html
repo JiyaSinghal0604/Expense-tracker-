@@ -1,78 +1,191 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FinTrack Pro</title>
-
-<!-- CSS -->
-<link rel="stylesheet" href="style.css">
-
-<!-- Chart.js -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
+<div class="app-shell">
 
-<div class="container">
-
-  <!-- NAVIGATION BAR LEFT -->
+  <!-- SIDEBAR -->
   <nav class="sidebar">
-    <h2>💸 FinTrack</h2>
-    <button onclick="showSection('current')">Current Month</button>
-    <button onclick="showSection('previous')">Previous Months</button>
-    <button onclick="showSection('limit')">Set Expense Limit</button>
-    <button onclick="toggleDarkMode()">Dark/Light Mode</button>
+    <div class="logo">
+      <span class="logo-icon">◈</span>
+      <span class="logo-text">FinTrack</span>
+    </div>
+    <div class="nav-links">
+      <button class="nav-btn active" data-section="current" onclick="showSection('current', this)">
+        <span class="nav-icon">▦</span> Dashboard
+      </button>
+      <button class="nav-btn" data-section="previous" onclick="showSection('previous', this)">
+        <span class="nav-icon">◫</span> History
+      </button>
+      <button class="nav-btn" data-section="limit" onclick="showSection('limit', this)">
+        <span class="nav-icon">◎</span> Budget
+      </button>
+    </div>
+    <div class="sidebar-bottom">
+      <button class="theme-toggle" onclick="toggleDarkMode()">
+        <span id="themeIcon">☀</span>
+      </button>
+    </div>
   </nav>
 
   <!-- MAIN CONTENT -->
-  <main>
+  <main class="main">
 
-    <!-- CURRENT MONTH DASHBOARD -->
-    <section id="current" class="section">
-      <h1>Current Month</h1>
-      
-      <!-- GRID: Total, Savings, Left -->
-      <div class="grid">
-        <div class="card">Total Expense<br><span id="totalExpense">₹0</span></div>
-        <div class="card">Savings<br><span id="totalSavings">₹0</span></div>
-        <div class="card">Left Balance<br><span id="leftBalance">₹0</span></div>
+    <!-- ── DASHBOARD ── -->
+    <section id="current" class="section active">
+      <div class="page-header">
+        <div>
+          <p class="page-label">OVERVIEW</p>
+          <h1 class="page-title" id="currentMonthLabel">March 2026</h1>
+        </div>
+        <div class="header-badge" id="limitBadge"></div>
+      </div>
+
+      <!-- STAT CARDS -->
+      <div class="stats-row">
+        <div class="stat-card stat-expense">
+          <p class="stat-label">Total Spent</p>
+          <p class="stat-value" id="totalExpense">₹0</p>
+          <div class="stat-bar"><div class="stat-bar-fill expense-fill" id="expenseBar"></div></div>
+        </div>
+        <div class="stat-card stat-savings">
+          <p class="stat-label">Saved This Month</p>
+          <p class="stat-value" id="totalSavings">₹0</p>
+        </div>
+        <div class="stat-card stat-balance">
+          <p class="stat-label">Remaining</p>
+          <p class="stat-value" id="leftBalance">₹0</p>
+        </div>
+      </div>
+
+      <!-- CHARTS ROW -->
+      <div class="charts-row">
+        <div class="chart-card chart-pie-wrap">
+          <p class="chart-title">Category Breakdown</p>
+          <div class="pie-container">
+            <canvas id="currentPie"></canvas>
+            <div class="pie-center-label">
+              <span id="pieCenterValue">₹0</span>
+              <span class="pie-center-sub">total</span>
+            </div>
+          </div>
+          <div id="legendContainer" class="custom-legend"></div>
+        </div>
+        <div class="chart-card chart-bar-wrap">
+          <p class="chart-title">Daily Spending</p>
+          <canvas id="dailyBar"></canvas>
+        </div>
       </div>
 
       <!-- ADD EXPENSE -->
-      <div class="add">
-        <input id="expDesc" placeholder="Description">
-        <input id="expAmount" type="number" placeholder="Amount">
-        <input id="expCategory" placeholder="Category">
-        <button onclick="addExpense()">Add</button>
+      <div class="add-card">
+        <p class="chart-title">Add Expense</p>
+        <div class="add-form">
+          <div class="input-group">
+            <label>Description</label>
+            <input id="expDesc" placeholder="e.g. Lunch at café" autocomplete="off">
+          </div>
+          <div class="input-group">
+            <label>Amount (₹)</label>
+            <input id="expAmount" type="number" placeholder="0.00" min="0">
+          </div>
+          <div class="input-group">
+            <label>Category</label>
+            <select id="expCategory">
+              <option value="Food">🍔 Food</option>
+              <option value="Transport">🚌 Transport</option>
+              <option value="Shopping">🛍 Shopping</option>
+              <option value="Utilities">💡 Utilities</option>
+              <option value="Health">💊 Health</option>
+              <option value="Entertainment">🎬 Entertainment</option>
+              <option value="Other">📦 Other</option>
+            </select>
+          </div>
+          <button class="add-btn" onclick="addExpense()">+ Add</button>
+        </div>
       </div>
 
-      <!-- EXPENSE HISTORY LIST -->
-      <h2>Expense History</h2>
-      <ul id="currentList"></ul>
-
-      <!-- PIE CHART -->
-      <canvas id="currentPie" width="400" height="400"></canvas>
+      <!-- EXPENSE LIST -->
+      <div class="list-card">
+        <p class="chart-title">Expense History</p>
+        <div class="list-filters">
+          <button class="filter-btn active" onclick="filterList('all', this)">All</button>
+          <button class="filter-btn" onclick="filterList('Food', this)">Food</button>
+          <button class="filter-btn" onclick="filterList('Transport', this)">Transport</button>
+          <button class="filter-btn" onclick="filterList('Shopping', this)">Shopping</button>
+        </div>
+        <ul id="currentList" class="expense-list"></ul>
+      </div>
     </section>
 
-    <!-- PREVIOUS MONTHS -->
+    <!-- ── HISTORY ── -->
     <section id="previous" class="section hidden">
-      <h1>Previous Months</h1>
-      <canvas id="previousChart"></canvas>
+      <div class="page-header">
+        <div>
+          <p class="page-label">ANALYTICS</p>
+          <h1 class="page-title">Monthly History</h1>
+        </div>
+      </div>
+      <div class="chart-card full-width-chart">
+        <p class="chart-title">Spending Over Time</p>
+        <canvas id="previousChart"></canvas>
+      </div>
+      <div class="chart-card full-width-chart" style="margin-top:1.5rem">
+        <p class="chart-title">Category Trends (Last 6 Months)</p>
+        <canvas id="categoryTrendChart"></canvas>
+      </div>
     </section>
 
-    <!-- EXPENSE LIMIT -->
+    <!-- ── BUDGET ── -->
     <section id="limit" class="section hidden">
-      <h1>Monthly Expense Limit</h1>
-      <input id="limitInput" type="number" placeholder="Set limit">
-      <button onclick="setLimit()">Save Limit</button>
-      <p>Current Limit: ₹<span id="currentLimit">0</span></p>
+      <div class="page-header">
+        <div>
+          <p class="page-label">SETTINGS</p>
+          <h1 class="page-title">Monthly Budget</h1>
+        </div>
+      </div>
+      <div class="budget-card">
+        <div class="budget-display">
+          <p class="budget-label">Current Budget</p>
+          <p class="budget-amount">₹<span id="currentLimit">0</span></p>
+        </div>
+        <div class="budget-progress-wrap">
+          <div class="budget-progress-bar">
+            <div class="budget-progress-fill" id="budgetProgressFill"></div>
+          </div>
+          <div class="budget-progress-labels">
+            <span id="budgetSpent">Spent: ₹0</span>
+            <span id="budgetPct">0%</span>
+          </div>
+        </div>
+        <div class="budget-form">
+          <div class="input-group">
+            <label>Set New Budget (₹)</label>
+            <input id="limitInput" type="number" placeholder="e.g. 30000" min="0">
+          </div>
+          <div class="input-group">
+            <label>Monthly Income (₹)</label>
+            <input id="incomeInput" type="number" placeholder="e.g. 50000" min="0">
+          </div>
+          <button class="add-btn" onclick="setLimit()">Save Settings</button>
+        </div>
+        <div class="savings-breakdown" id="savingsBreakdown"></div>
+      </div>
     </section>
 
   </main>
 </div>
 
-<!-- JS -->
-<script src="script.js"></script>
+<div class="toast" id="toast"></div>
 
+<script src="script.js"></script>
 </body>
 </html>
