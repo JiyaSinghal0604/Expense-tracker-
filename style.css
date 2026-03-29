@@ -1,0 +1,124 @@
+/* GLOBAL */
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  background: #000;
+  color: white;
+}
+
+/* LAYOUT */
+.container {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* SIDEBAR */
+.sidebar {
+  width: 220px;
+  background: #111;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar h2 {
+  margin-bottom: 30px;
+}
+
+.sidebar button {
+  margin-bottom: 15px;
+  padding: 10px;
+  border: none;
+  border-radius: 10px;
+  background: #222;
+  color: white;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.sidebar button:hover {
+  background: #6366f1;
+}
+
+/* MAIN CONTENT */
+main {
+  flex: 1;
+  padding: 20px;
+}
+
+/* GRID CARDS */
+.grid {
+  display: flex;
+  gap: 20px;
+  margin: 20px 0;
+}
+
+.card {
+  flex: 1;
+  padding: 20px;
+  border-radius: 15px;
+  background: #6366f1;
+  text-align: center;
+}
+
+/* ADD EXPENSE */
+.add {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.add input, .add button {
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+}
+
+.add button {
+  background: #6366f1;
+  color: white;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.add button:hover {
+  background: #4f46e5;
+}
+
+/* EXPENSE LIST */
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+li {
+  background: rgba(255,255,255,0.1);
+  padding: 12px;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  display: flex;
+  justify-content: space-between;
+}
+
+li button {
+  margin-left: 5px;
+  background: #ef4444;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: white;
+}
+
+/* SECTIONS */
+.section.hidden { display: none; }
+
+/* CHARTS */
+canvas {
+  width: 100% !important;         /* full width of container */
+  max-width: 500px;               /* maximum width */
+  height: 400px !important;       /* fixed height for proper Chart.js rendering */
+  border-radius: 12px;
+  margin-top: 20px;
+  background: transparent;        /* transparent for dark mode */
+  display: block;                 /* ensures canvas is visible */
+}

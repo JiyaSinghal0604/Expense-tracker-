@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinTrack Pro</title>
+
+<!-- CSS -->
+<link rel="stylesheet" href="style.css">
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- NAVIGATION BAR LEFT -->
+  <nav class="sidebar">
+    <h2>💸 FinTrack</h2>
+    <button onclick="showSection('current')">Current Month</button>
+    <button onclick="showSection('previous')">Previous Months</button>
+    <button onclick="showSection('limit')">Set Expense Limit</button>
+    <button onclick="toggleDarkMode()">Dark/Light Mode</button>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <main>
+
+    <!-- CURRENT MONTH DASHBOARD -->
+    <section id="current" class="section">
+      <h1>Current Month</h1>
+      
+      <!-- GRID: Total, Savings, Left -->
+      <div class="grid">
+        <div class="card">Total Expense<br><span id="totalExpense">₹0</span></div>
+        <div class="card">Savings<br><span id="totalSavings">₹0</span></div>
+        <div class="card">Left Balance<br><span id="leftBalance">₹0</span></div>
+      </div>
+
+      <!-- ADD EXPENSE -->
+      <div class="add">
+        <input id="expDesc" placeholder="Description">
+        <input id="expAmount" type="number" placeholder="Amount">
+        <input id="expCategory" placeholder="Category">
+        <button onclick="addExpense()">Add</button>
+      </div>
+
+      <!-- EXPENSE HISTORY LIST -->
+      <h2>Expense History</h2>
+      <ul id="currentList"></ul>
+
+      <!-- PIE CHART -->
+      <canvas id="currentPie" width="400" height="400"></canvas>
+    </section>
+
+    <!-- PREVIOUS MONTHS -->
+    <section id="previous" class="section hidden">
+      <h1>Previous Months</h1>
+      <canvas id="previousChart"></canvas>
+    </section>
+
+    <!-- EXPENSE LIMIT -->
+    <section id="limit" class="section hidden">
+      <h1>Monthly Expense Limit</h1>
+      <input id="limitInput" type="number" placeholder="Set limit">
+      <button onclick="setLimit()">Save Limit</button>
+      <p>Current Limit: ₹<span id="currentLimit">0</span></p>
+    </section>
+
+  </main>
+</div>
+
+<!-- JS -->
+<script src="script.js"></script>
+
+</body>
+</html>
