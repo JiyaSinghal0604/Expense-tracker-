@@ -1,592 +1,494 @@
 /* ═══════════════════════════════════════════
-   FINTRACK PRO — STYLESHEET
-   Aesthetic: Refined dark-first finance UI
-   Fonts: Syne (display) + DM Mono (numbers)
+   FINTRACK PRO — SCRIPT
 ═══════════════════════════════════════════ */
 
-:root {
-  --bg: #0d0f14;
-  --surface: #13161e;
-  --surface2: #1a1e2a;
-  --border: rgba(255,255,255,0.07);
-  --text: #e8eaf0;
-  --text-muted: #6b7080;
-  --accent: #7c6dfa;
-  --accent2: #f0a05a;
-  --green: #3fd68f;
-  --red: #f05a7c;
-  --blue: #5ab4f0;
-  --font-display: 'Syne', sans-serif;
-  --font-mono: 'DM Mono', monospace;
-  --radius: 16px;
-  --radius-sm: 10px;
-  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+// ── STATE ──────────────────────────────────
+let state = JSON.parse(localStorage.getItem('fintrack_v3')) || {
+  expenses: [],
+  limit: 0,
+  income: 0,
+  theme: 'dark'
+};
+
+const CATEGORY_META = {
+  Food:          { emoji: '🍔', color: '#f05a7c' },
+  Transport:     { emoji: '🚌', color: '#5ab4f0' },
+  Shopping:      { emoji: '🛍', color: '#f0a05a' },
+  Utilities:     { emoji: '💡', color: '#7c6dfa' },
+  Health:        { emoji: '💊', color: '#3fd68f' },
+  Entertainment: { emoji: '🎬', color: '#fa6db5' },
+  Other:         { emoji: '📦', color: '#a0a8c0' },
+};
+
+// ── PERSIST ────────────────────────────────
+function save() {
+  localStorage.setItem('fintrack_v3', JSON.stringify(state));
 }
 
-[data-theme="light"] {
-  --bg: #f0f2f8;
-  --surface: #ffffff;
-  --surface2: #f5f6fc;
-  --border: rgba(0,0,0,0.08);
-  --text: #1a1d28;
-  --text-muted: #8a8fa8;
-  --shadow: 0 4px 24px rgba(0,0,0,0.1);
+// ── MONTH HELPERS ──────────────────────────
+function currentMonthKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
 }
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-html, body { height: 100%; }
-
-body {
-  font-family: var(--font-display);
-  background: var(--bg);
-  color: var(--text);
-  overflow: hidden;
-  transition: background 0.3s, color 0.3s;
+function currentMonthExpenses() {
+  const key = currentMonthKey();
+  return state.expenses.filter(e => e.month === key);
 }
 
-/* ── LAYOUT ── */
-.app-shell {
-  display: flex;
-  height: 100vh;
-  overflow: hidden;
+function totalFor(expenses) {
+  return expenses.reduce((s, e) => s + e.amount, 0);
 }
 
-/* ── SIDEBAR ── */
-.sidebar {
-  width: 220px;
-  flex-shrink: 0;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  padding: 2rem 1.2rem;
-  gap: 2.5rem;
+// ── SECTION NAV ────────────────────────────
+function showSection(id, btn) {
+  document.querySelectorAll('.section').forEach(s => {
+    s.classList.remove('active');
+    s.classList.add('hidden');
+  });
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.getElementById(id).classList.remove('hidden');
+  if (btn) btn.classList.add('active');
+
+  if (id === 'previous') renderHistory();
+  if (id === 'limit') renderBudget();
 }
 
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
+// ── DARK MODE ──────────────────────────────
+function toggleDarkMode() {
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const next = isLight ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', next);
+  document.getElementById('themeIcon').textContent = next === 'dark' ? '☀' : '☾';
+  state.theme = next;
+  save();
+  reRenderCharts();
 }
 
-.logo-icon {
-  font-size: 1.6rem;
-  color: var(--accent);
-  line-height: 1;
+// ── TOAST ──────────────────────────────────
+function toast(msg, type = 'info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.borderLeftColor = type === 'success' ? 'var(--green)' : type === 'warn' ? 'var(--accent2)' : 'var(--red)';
+  el.style.borderLeftWidth = '3px';
+  el.style.borderLeftStyle = 'solid';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
 }
 
-.logo-text {
-  font-size: 1.3rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: var(--text);
+// ── ADD EXPENSE ────────────────────────────
+function addExpense() {
+  const desc   = document.getElementById('expDesc').value.trim();
+  const amount = parseFloat(document.getElementById('expAmount').value);
+  const cat    = document.getElementById('expCategory').value;
+
+  if (!desc)          return toast('Please enter a description.', 'error');
+  if (!amount || amount <= 0) return toast('Please enter a valid amount.', 'error');
+
+  const expense = {
+    id: Date.now(),
+    desc, amount, category: cat,
+    month: currentMonthKey(),
+    date: new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short' })
+  };
+
+  state.expenses.unshift(expense);
+  save();
+
+  document.getElementById('expDesc').value   = '';
+  document.getElementById('expAmount').value = '';
+
+  toast('Expense added!', 'success');
+  renderDashboard();
 }
 
-.nav-links { display: flex; flex-direction: column; gap: 0.4rem; flex: 1; }
-
-.nav-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-family: var(--font-display);
-  font-size: 0.9rem;
-  font-weight: 600;
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  text-align: left;
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  transition: background 0.2s, color 0.2s;
+// ── DELETE EXPENSE ─────────────────────────
+function deleteExpense(id) {
+  state.expenses = state.expenses.filter(e => e.id !== id);
+  save();
+  renderDashboard();
+  toast('Removed.', 'warn');
 }
 
-.nav-btn:hover { background: var(--surface2); color: var(--text); }
-.nav-btn.active { background: var(--accent); color: #fff; }
-
-.nav-icon { font-size: 1rem; opacity: 0.8; }
-
-.sidebar-bottom { margin-top: auto; }
-
-.theme-toggle {
-  width: 42px; height: 42px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--surface2);
-  color: var(--text);
-  font-size: 1.1rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.theme-toggle:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
-
-/* ── MAIN ── */
-.main {
-  flex: 1;
-  overflow-y: auto;
-  padding: 2rem 2.5rem;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+// ── FILTER ─────────────────────────────────
+let activeFilter = 'all';
+function filterList(cat, btn) {
+  activeFilter = cat;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderExpenseList();
 }
 
-.main::-webkit-scrollbar { width: 5px; }
-.main::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+// ── RENDER EXPENSE LIST ────────────────────
+function renderExpenseList() {
+  const list = document.getElementById('currentList');
+  let expenses = currentMonthExpenses();
+  if (activeFilter !== 'all') expenses = expenses.filter(e => e.category === activeFilter);
 
-/* ── PAGE HEADER ── */
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 2rem;
+  if (!expenses.length) {
+    list.innerHTML = `<li class="empty-state">No expenses yet — add one above ↑</li>`;
+    return;
+  }
+
+  list.innerHTML = expenses.map(e => {
+    const meta = CATEGORY_META[e.category] || CATEGORY_META.Other;
+    return `
+      <li class="expense-item">
+        <div class="expense-cat-badge" style="background:${meta.color}22">
+          ${meta.emoji}
+        </div>
+        <div class="expense-info">
+          <div class="expense-desc">${e.desc}</div>
+          <div class="expense-meta">${e.category} · ${e.date}</div>
+        </div>
+        <div class="expense-amount">-₹${e.amount.toLocaleString('en-IN')}</div>
+        <button class="expense-delete" onclick="deleteExpense(${e.id})" title="Delete">✕</button>
+      </li>`;
+  }).join('');
 }
 
-.page-label {
-  font-size: 0.68rem;
-  letter-spacing: 0.15em;
-  color: var(--accent);
-  font-weight: 600;
-  margin-bottom: 0.2rem;
+// ── CHARTS STORE ───────────────────────────
+const charts = {};
+
+function destroyChart(key) {
+  if (charts[key]) { charts[key].destroy(); delete charts[key]; }
 }
 
-.page-title {
-  font-size: 2rem;
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  color: var(--text);
+function chartColors() {
+  return Object.values(CATEGORY_META).map(m => m.color);
 }
 
-.header-badge {
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  padding: 0.4rem 0.9rem;
-  border-radius: 20px;
-  font-weight: 500;
+// ── PIE CHART ──────────────────────────────
+function renderPieChart(expenses) {
+  destroyChart('pie');
+  const ctx = document.getElementById('currentPie').getContext('2d');
+  const catMap = {};
+  expenses.forEach(e => { catMap[e.category] = (catMap[e.category]||0) + e.amount; });
+  const labels = Object.keys(catMap);
+  const data   = Object.values(catMap);
+  const colors = labels.map(l => (CATEGORY_META[l]||CATEGORY_META.Other).color);
+  const total  = data.reduce((s,v)=>s+v,0);
+
+  document.getElementById('pieCenterValue').textContent = '₹' + total.toLocaleString('en-IN');
+
+  if (!labels.length) {
+    document.getElementById('legendContainer').innerHTML = '';
+    return;
+  }
+
+  charts['pie'] = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: getComputedStyle(document.documentElement).getPropertyValue('--surface').trim(), hoverOffset: 8 }] },
+    options: {
+      cutout: '72%',
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: { label: c => ` ₹${c.parsed.toLocaleString('en-IN')} (${Math.round(c.parsed/total*100)}%)` }
+      }},
+      animation: { animateRotate: true, duration: 700 }
+    }
+  });
+
+  // Custom legend
+  const leg = document.getElementById('legendContainer');
+  leg.innerHTML = labels.map((l,i) => `
+    <div class="legend-item">
+      <div class="legend-dot" style="background:${colors[i]}"></div>
+      <span class="legend-name">${l}</span>
+      <span class="legend-val">₹${data[i].toLocaleString('en-IN')}</span>
+    </div>`).join('');
 }
 
-.badge-safe { background: rgba(63,214,143,0.12); color: var(--green); border: 1px solid rgba(63,214,143,0.25); }
-.badge-warn { background: rgba(240,160,90,0.12); color: var(--accent2); border: 1px solid rgba(240,160,90,0.25); }
-.badge-danger { background: rgba(240,90,124,0.12); color: var(--red); border: 1px solid rgba(240,90,124,0.25); }
+// ── DAILY BAR CHART ────────────────────────
+function renderDailyBar(expenses) {
+  destroyChart('daily');
+  const ctx = document.getElementById('dailyBar').getContext('2d');
+  const now = new Date();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  const dailyTotals = Array(daysInMonth).fill(0);
 
-/* ── STAT CARDS ── */
-.stats-row {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  expenses.forEach(e => {
+    // Rough day extraction from date string or use today
+    const idx = (new Date().getDate()) - 1;
+    const stored = state.expenses.find(ex => ex.id === e.id);
+    if (stored && stored.dayIndex !== undefined) {
+      dailyTotals[stored.dayIndex] = (dailyTotals[stored.dayIndex]||0) + e.amount;
+    } else {
+      dailyTotals[idx] = (dailyTotals[idx]||0) + e.amount;
+    }
+  });
+
+  const labels = Array.from({length: daysInMonth}, (_,i) => i+1);
+  const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
+  const accent = '#7c6dfa';
+
+  charts['daily'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: dailyTotals,
+        backgroundColor: dailyTotals.map((v,i) => i === now.getDate()-1 ? accent : accent+'55'),
+        borderRadius: 5,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: { label: c => ` ₹${c.parsed.y.toLocaleString('en-IN')}` }
+      }},
+      scales: {
+        x: { ticks: { color: textColor, font: { family: 'DM Mono', size: 10 } }, grid: { display: false } },
+        y: { ticks: { color: textColor, font: { family: 'DM Mono', size: 10 },
+              callback: v => '₹'+v.toLocaleString('en-IN') }, grid: { color: 'rgba(255,255,255,0.04)' } }
+      },
+      animation: { duration: 600 }
+    }
+  });
 }
 
-.stat-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.4rem 1.6rem;
-  transition: transform 0.2s;
+// ── HISTORY CHARTS ─────────────────────────
+function renderHistory() {
+  // Build last 6 months data
+  const months = [];
+  const now = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const label = d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
+    const exps = state.expenses.filter(e => e.month === key);
+    months.push({ key, label, total: totalFor(exps), exps });
+  }
+
+  const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
+
+  // Line chart
+  destroyChart('prev');
+  const ctx1 = document.getElementById('previousChart').getContext('2d');
+  const accent = '#7c6dfa';
+  charts['prev'] = new Chart(ctx1, {
+    type: 'line',
+    data: {
+      labels: months.map(m => m.label),
+      datasets: [{
+        label: 'Total Spending',
+        data: months.map(m => m.total),
+        borderColor: accent,
+        backgroundColor: accent + '22',
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: accent,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: { label: c => ` ₹${c.parsed.y.toLocaleString('en-IN')}` }
+      }},
+      scales: {
+        x: { ticks: { color: textColor, font:{family:'DM Mono',size:11} }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: textColor, font:{family:'DM Mono',size:11}, callback: v=>'₹'+v.toLocaleString('en-IN') }, grid: { color: 'rgba(255,255,255,0.04)' } }
+      },
+      animation: { duration: 700 }
+    }
+  });
+
+  // Stacked bar by category
+  destroyChart('trend');
+  const ctx2 = document.getElementById('categoryTrendChart').getContext('2d');
+  const categories = Object.keys(CATEGORY_META);
+  const datasets = categories.map(cat => ({
+    label: cat,
+    data: months.map(m => totalFor(m.exps.filter(e => e.category === cat))),
+    backgroundColor: (CATEGORY_META[cat]||CATEGORY_META.Other).color + 'cc',
+    borderRadius: 4,
+    borderSkipped: false,
+  }));
+
+  charts['trend'] = new Chart(ctx2, {
+    type: 'bar',
+    data: { labels: months.map(m => m.label), datasets },
+    options: {
+      plugins: { legend: {
+        position: 'bottom',
+        labels: { color: textColor, font:{family:'Syne',size:11}, padding: 16, usePointStyle: true }
+      }, tooltip: {
+        callbacks: { label: c => ` ${c.dataset.label}: ₹${c.parsed.y.toLocaleString('en-IN')}` }
+      }},
+      scales: {
+        x: { stacked: true, ticks:{color:textColor,font:{family:'DM Mono',size:11}}, grid:{display:false} },
+        y: { stacked: true, ticks:{color:textColor,font:{family:'DM Mono',size:11},callback:v=>'₹'+v.toLocaleString('en-IN')}, grid:{color:'rgba(255,255,255,0.04)'} }
+      },
+      animation: { duration: 700 }
+    }
+  });
 }
 
-.stat-card:hover { transform: translateY(-2px); }
+// ── BUDGET SECTION ─────────────────────────
+function renderBudget() {
+  const spent = totalFor(currentMonthExpenses());
+  const limit = state.limit;
+  const income = state.income;
 
-.stat-label {
-  font-size: 0.72rem;
-  letter-spacing: 0.1em;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  margin-bottom: 0.5rem;
+  document.getElementById('currentLimit').textContent = limit.toLocaleString('en-IN');
+  document.getElementById('limitInput').value = limit || '';
+  document.getElementById('incomeInput').value = income || '';
+  document.getElementById('budgetSpent').textContent = `Spent: ₹${spent.toLocaleString('en-IN')}`;
+
+  if (limit > 0) {
+    const pct = Math.min(100, Math.round(spent / limit * 100));
+    document.getElementById('budgetProgressFill').style.width = pct + '%';
+    document.getElementById('budgetProgressFill').style.background =
+      pct > 90 ? 'var(--red)' : pct > 70 ? 'var(--accent2)' : 'var(--green)';
+    document.getElementById('budgetPct').textContent = pct + '%';
+  }
+
+  if (income > 0) {
+    const savings = income - spent;
+    const savPct = Math.round(savings / income * 100);
+    document.getElementById('savingsBreakdown').innerHTML = `
+      <strong style="color:var(--text)">Income Breakdown</strong><br>
+      Income: ₹${income.toLocaleString('en-IN')}<br>
+      Spent: ₹${spent.toLocaleString('en-IN')}<br>
+      Saved: <span style="color:var(--green)">₹${Math.max(0,savings).toLocaleString('en-IN')} (${Math.max(0,savPct)}%)</span>
+    `;
+  }
 }
 
-.stat-value {
-  font-family: var(--font-mono);
-  font-size: 1.8rem;
-  font-weight: 500;
-  letter-spacing: -0.03em;
-  color: var(--text);
+function setLimit() {
+  const l = parseFloat(document.getElementById('limitInput').value) || 0;
+  const i = parseFloat(document.getElementById('incomeInput').value) || 0;
+  state.limit = l;
+  state.income = i;
+  save();
+  renderBudget();
+  renderDashboard();
+  toast('Budget saved!', 'success');
 }
 
-.stat-expense .stat-value { color: var(--red); }
-.stat-savings .stat-value { color: var(--green); }
-.stat-balance .stat-value { color: var(--blue); }
+// ── MAIN DASHBOARD ─────────────────────────
+function renderDashboard() {
+  const expenses = currentMonthExpenses();
+  const spent  = totalFor(expenses);
+  const limit  = state.limit;
+  const income = state.income;
+  const savings = income > 0 ? Math.max(0, income - spent) : 0;
+  const left    = limit  > 0 ? Math.max(0, limit  - spent) : 0;
 
-.stat-bar {
-  height: 3px;
-  background: var(--surface2);
-  border-radius: 10px;
-  margin-top: 1rem;
-  overflow: hidden;
+  // Cards
+  document.getElementById('totalExpense').textContent = '₹' + spent.toLocaleString('en-IN');
+  document.getElementById('totalSavings').textContent = '₹' + savings.toLocaleString('en-IN');
+  document.getElementById('leftBalance').textContent  = '₹' + left.toLocaleString('en-IN');
+
+  // Month label
+  const now = new Date();
+  document.getElementById('currentMonthLabel').textContent =
+    now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+
+  // Expense bar
+  if (limit > 0) {
+    const pct = Math.min(100, Math.round(spent/limit*100));
+    document.getElementById('expenseBar').style.width = pct + '%';
+  }
+
+  // Limit badge
+  const badge = document.getElementById('limitBadge');
+  if (limit > 0) {
+    const pct = Math.round(spent/limit*100);
+    if (pct >= 100) {
+      badge.textContent = '⚠ Over Budget'; badge.className = 'header-badge badge-danger';
+    } else if (pct >= 75) {
+      badge.textContent = `${pct}% used`; badge.className = 'header-badge badge-warn';
+    } else {
+      badge.textContent = `${pct}% of budget`; badge.className = 'header-badge badge-safe';
+    }
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+
+  renderPieChart(expenses);
+  renderDailyBarFixed(expenses);
+  renderExpenseList();
 }
 
-.stat-bar-fill {
-  height: 100%;
-  border-radius: 10px;
-  width: 0%;
-  transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+// Fixed daily bar that uses stored day index
+function renderDailyBarFixed(expenses) {
+  destroyChart('daily');
+  const ctx = document.getElementById('dailyBar').getContext('2d');
+  const now = new Date();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  const dailyTotals = Array(daysInMonth).fill(0);
+
+  expenses.forEach(e => {
+    const day = (e.day || now.getDate()) - 1;
+    if (day >= 0 && day < daysInMonth) dailyTotals[day] += e.amount;
+  });
+
+  const labels = Array.from({length: daysInMonth}, (_,i) => i+1);
+  const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
+  const accent = '#7c6dfa';
+
+  charts['daily'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: dailyTotals,
+        backgroundColor: dailyTotals.map((_,i) => i === now.getDate()-1 ? accent : accent+'55'),
+        borderRadius: 5,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: { label: c => ` ₹${c.parsed.y.toLocaleString('en-IN')}` }
+      }},
+      scales: {
+        x: { ticks: { color: textColor, font:{family:'DM Mono',size:10} }, grid: { display: false } },
+        y: { ticks: { color: textColor, font:{family:'DM Mono',size:10},
+              callback: v=>'₹'+v.toLocaleString('en-IN') }, grid: { color: 'rgba(255,255,255,0.04)' } }
+      },
+      animation: { duration: 600 }
+    }
+  });
 }
 
-.expense-fill { background: linear-gradient(90deg, var(--red), var(--accent2)); }
-
-/* ── CHARTS ROW ── */
-.charts-row {
-  display: grid;
-  grid-template-columns: 1fr 1.6fr;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+function reRenderCharts() {
+  const activeSection = document.querySelector('.section.active')?.id;
+  if (activeSection === 'current') renderDashboard();
+  else if (activeSection === 'previous') renderHistory();
 }
 
-.chart-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.6rem;
-}
+// Patch addExpense to store day
+const _origAdd = addExpense;
+window.addExpense = function() {
+  const desc   = document.getElementById('expDesc').value.trim();
+  const amount = parseFloat(document.getElementById('expAmount').value);
+  const cat    = document.getElementById('expCategory').value;
+  if (!desc) return toast('Please enter a description.', 'error');
+  if (!amount || amount <= 0) return toast('Please enter a valid amount.', 'error');
 
-.chart-title {
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin-bottom: 1.2rem;
-  font-weight: 600;
-}
+  const now = new Date();
+  const expense = {
+    id: Date.now(),
+    desc, amount, category: cat,
+    month: currentMonthKey(),
+    day: now.getDate(),
+    date: now.toLocaleDateString('en-IN', { day:'2-digit', month:'short' })
+  };
+  state.expenses.unshift(expense);
+  save();
+  document.getElementById('expDesc').value   = '';
+  document.getElementById('expAmount').value = '';
+  toast('Expense added!', 'success');
+  renderDashboard();
+};
 
-/* ── PIE CHART ── */
-.pie-container {
-  position: relative;
-  width: 180px;
-  height: 180px;
-  margin: 0 auto 1rem;
-}
-
-.pie-center-label {
-  position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  text-align: center;
-  pointer-events: none;
-}
-
-.pie-center-label span:first-child {
-  display: block;
-  font-family: var(--font-mono);
-  font-size: 1rem;
-  font-weight: 500;
-  color: var(--text);
-}
-
-.pie-center-sub {
-  font-size: 0.65rem;
-  color: var(--text-muted);
-  letter-spacing: 0.08em;
-}
-
-/* ── CUSTOM LEGEND ── */
-.custom-legend {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  max-height: 140px;
-  overflow-y: auto;
-  scrollbar-width: none;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  font-size: 0.78rem;
-}
-
-.legend-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.legend-name { color: var(--text-muted); flex: 1; }
-.legend-val { font-family: var(--font-mono); color: var(--text); font-size: 0.75rem; }
-
-/* ── FULL WIDTH CHART ── */
-.full-width-chart canvas { max-height: 280px; }
-
-/* ── ADD CARD ── */
-.add-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.6rem;
-  margin-bottom: 1.5rem;
-}
-
-.add-form {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr auto;
-  gap: 1rem;
-  align-items: flex-end;
-}
-
-.input-group { display: flex; flex-direction: column; gap: 0.4rem; }
-
-.input-group label {
-  font-size: 0.68rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.input-group input,
-.input-group select {
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  font-family: var(--font-display);
-  font-size: 0.9rem;
-  padding: 0.65rem 0.9rem;
-  outline: none;
-  transition: border 0.2s;
-  width: 100%;
-}
-
-.input-group input:focus,
-.input-group select:focus {
-  border-color: var(--accent);
-}
-
-.input-group select option { background: var(--surface); }
-
-.add-btn {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-sm);
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 0.9rem;
-  padding: 0.65rem 1.4rem;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: opacity 0.2s, transform 0.15s;
-}
-
-.add-btn:hover { opacity: 0.9; transform: translateY(-1px); }
-.add-btn:active { transform: translateY(0); }
-
-/* ── EXPENSE LIST ── */
-.list-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.6rem;
-  margin-bottom: 1.5rem;
-}
-
-.list-filters {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
-}
-
-.filter-btn {
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  font-family: var(--font-display);
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.35rem 0.9rem;
-  border-radius: 20px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.filter-btn:hover { color: var(--text); border-color: var(--accent); }
-.filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-
-.expense-list { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
-
-.expense-item {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.8rem 1rem;
-  background: var(--surface2);
-  border-radius: var(--radius-sm);
-  border: 1px solid transparent;
-  transition: border-color 0.2s, transform 0.15s;
-  animation: slideIn 0.3s ease;
-}
-
-.expense-item:hover { border-color: var(--border); transform: translateX(3px); }
-
-@keyframes slideIn {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.expense-cat-badge {
-  width: 36px; height: 36px;
-  border-radius: 8px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1rem;
-  flex-shrink: 0;
-}
-
-.expense-info { flex: 1; }
-
-.expense-desc {
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.expense-meta {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  margin-top: 0.1rem;
-}
-
-.expense-amount {
-  font-family: var(--font-mono);
-  font-size: 0.95rem;
-  font-weight: 500;
-  color: var(--red);
-}
-
-.expense-delete {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 0.9rem;
-  padding: 0.2rem;
-  border-radius: 4px;
-  transition: color 0.2s, background 0.2s;
-}
-
-.expense-delete:hover { color: var(--red); background: rgba(240,90,124,0.1); }
-
-.empty-state {
-  text-align: center;
-  padding: 2rem;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-}
-
-.section.hidden { display: none !important; }
-
-/* ── BUDGET SECTION ── */
-.budget-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 2rem;
-  max-width: 580px;
-}
-
-.budget-display { margin-bottom: 1.5rem; }
-
-.budget-label {
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--text-muted);
-  margin-bottom: 0.3rem;
-}
-
-.budget-amount {
-  font-family: var(--font-mono);
-  font-size: 3rem;
-  font-weight: 400;
-  letter-spacing: -0.04em;
-  color: var(--text);
-}
-
-.budget-progress-wrap { margin-bottom: 1.8rem; }
-
-.budget-progress-bar {
-  height: 6px;
-  background: var(--surface2);
-  border-radius: 10px;
-  overflow: hidden;
-  margin-bottom: 0.5rem;
-}
-
-.budget-progress-fill {
-  height: 100%;
-  border-radius: 10px;
-  width: 0%;
-  transition: width 0.8s cubic-bezier(0.4,0,0.2,1), background 0.3s;
-  background: var(--green);
-}
-
-.budget-progress-labels {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.75rem;
-  font-family: var(--font-mono);
-  color: var(--text-muted);
-}
-
-.budget-form {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  align-items: flex-end;
-}
-
-.budget-form .add-btn { grid-column: span 2; }
-
-.savings-breakdown {
-  padding-top: 1rem;
-  border-top: 1px solid var(--border);
-  font-size: 0.82rem;
-  color: var(--text-muted);
-  line-height: 1.8;
-}
-
-/* ── TOAST ── */
-.toast {
-  position: fixed;
-  bottom: 2rem;
-  right: 2rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 0.8rem 1.4rem;
-  font-size: 0.85rem;
-  color: var(--text);
-  box-shadow: var(--shadow);
-  transform: translateY(100px);
-  opacity: 0;
-  transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
-  pointer-events: none;
-  z-index: 100;
-}
-
-.toast.show { transform: translateY(0); opacity: 1; }
-
-/* ── SCROLLBAR ── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
-
-/* ── RESPONSIVE ── */
-@media (max-width: 900px) {
-  .stats-row { grid-template-columns: 1fr 1fr; }
-  .stat-expense { grid-column: span 2; }
-  .charts-row { grid-template-columns: 1fr; }
-  .add-form { grid-template-columns: 1fr 1fr; }
-  .add-btn { grid-column: span 2; }
-}
-
-@media (max-width: 640px) {
-  body { overflow: auto; }
-  .app-shell { flex-direction: column; height: auto; }
-  .sidebar { width: 100%; flex-direction: row; padding: 1rem; gap: 1rem; }
-  .nav-links { flex-direction: row; flex: 1; }
-  .main { padding: 1.2rem; }
-  .stats-row { grid-template-columns: 1fr; }
-  .stat-expense { grid-column: auto; }
-  .budget-form { grid-template-columns: 1fr; }
-  .budget-form .add-btn { grid-column: auto; }
-}
+// ── INIT ───────────────────────────────────
+(function init() {
+  document.documentElement.setAttribute('data-theme', state.theme || 'dark');
+  document.getElementById('themeIcon').textContent = state.theme === 'light' ? '☾' : '☀';
+  renderDashboard();
+})();
